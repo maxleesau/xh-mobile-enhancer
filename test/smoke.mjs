@@ -1,0 +1,166 @@
+// Smoke harness: run the userscript inside a jsdom page shaped like the target
+// site and assert the behaviours that matter. Not a substitute for the phone,
+// but it catches document-start crashes and blocklist false positives.
+import fs from 'node:fs';
+import { JSDOM } from 'jsdom';
+
+const SRC = fs.readFileSync(
+  new URL('../xh-mobile-enhancer.user.js', import.meta.url), 'utf8');
+
+const results = [];
+const ok = (name, cond, detail = '') =>
+  results.push({ name, pass: !!cond, detail });
+const skip = (name) => results.push({ name, skipped: true, detail: '' });
+
+const html = `<!doctype html><html><head><title>t</title></head><body>
+  <div id="cookie-banner"><button class="reject-all">Reject all</button></div>
+  <div class="age-gate"><button class="confirm">I am 18+</button></div>
+  <div class="player-container">
+    <video id="main"></video>
+    <a target="_blank" href="https://exoclick.com/x"></a>
+    <div class="quality-selector"><button>Quality</button></div>
+    <ul class="quality-list"><li>360p</li><li>1080p</li><li>2160p</li></ul>
+  </div>
+  <div id="comments"><div class="comment-list">c</div></div>
+  <div class="thumb-list"><div><video id="preview"></video></div></div>
+  <div id="ad-top">ad</div>
+  <div class="premium-banner">upsell</div>
+</body></html>`;
+
+const dom = new JSDOM(html, {
+  url: 'https://xhamster.com/videos/example-123',
+  pretendToBeVisual: true,
+  runScripts: 'outside-only',
+});
+const { window } = dom;
+
+// jsdom has no media stack; stub just enough that the script's calls resolve.
+window.HTMLMediaElement.prototype.play = function () {
+  this.__played = true;
+  return Promise.resolve();
+};
+window.HTMLMediaElement.prototype.pause = function () { this.paused = true; };
+window.HTMLMediaElement.prototype.webkitEnterFullscreen = function () {
+  this.__fullscreen = true;
+};
+// Give videos a size so findMainVideo can pick a winner.
+const sizes = { main: [390, 220], preview: [80, 60] };
+window.Element.prototype.getBoundingClientRect = function () {
+  const [width, height] = sizes[this.id] || [0, 0];
+  return { width, height, top: 0, left: 0, right: width, bottom: height };
+};
+
+const fetched = [];
+window.fetch = (input) => {
+  fetched.push(String(input && input.url ? input.url : input));
+  return Promise.resolve({ ok: true, text: () => Promise.resolve('') });
+};
+const opened = [];
+window.open = (url) => { opened.push(String(url)); return { real: true }; };
+
+let crashed = null;
+try {
+  window.eval(SRC);
+} catch (e) {
+  crashed = e;
+}
+ok('script runs at document-start without throwing', !crashed,
+  crashed ? String(crashed && crashed.stack).split('\n').slice(0, 3).join(' | ') : '');
+
+if (crashed) { report(); process.exit(1); }
+
+const doc = window.document;
+
+// --- network guard -------------------------------------------------------
+const blockedProbe = [];
+const allowedProbe = [];
+const probes = [
+  ['https://exoclick.com/tag.js', true],
+  ['https://sub.doubleclick.net/x', true],       // suffix match
+  ['https://xhamster.com/api/ads/list', true],   // path pattern, first-party
+  ['https://xhamster.com/api/video/123', false], // first-party, must survive
+  ['https://vs-cf.xhcdn.com/seg-1.ts', false],   // media CDN, must survive
+  ['https://thumb-nss.xhcdn.com/a.jpg', false],
+];
+for (const [url, expectBlocked] of probes) {
+  const before = fetched.length;
+  window.fetch(url);
+  const passed = (fetched.length === before) === expectBlocked;
+  (expectBlocked ? blockedProbe : allowedProbe).push(`${url} ${passed ? 'ok' : 'FAIL'}`);
+  ok(`${expectBlocked ? 'blocks' : 'allows'} ${url}`, passed);
+}
+
+// --- popunder guard ------------------------------------------------------
+const openedBefore = opened.length;
+window.open('https://popads.net/x');
+ok('window.open without a user gesture is stubbed out', opened.length === openedBefore);
+
+// --- player ---------------------------------------------------------------
+await new Promise((r) => window.setTimeout(r, 50));
+const main = doc.getElementById('main');
+const preview = doc.getElementById('preview');
+ok('main video is playsInline', main.playsInline === true);
+ok('main video is muted for autostart', main.muted === true);
+ok('main video full-buffers (preload=auto)', main.preload === 'auto');
+ok('main video autoplay attempted', main.__played === true);
+ok('secondary video does not full-buffer', preview.preload !== 'auto');
+ok('secondary video stays muted', preview.muted === true);
+
+// --- first tap: sound + fullscreen ---------------------------------------
+// The script only acts on a trusted event, so its own auto-dismiss clicks
+// can't spend the user's first tap. jsdom makes isTrusted a non-configurable
+// own property, so a real tap CANNOT be simulated here — the unmute and
+// fullscreen handoff are on-device checks only (see README step 4).
+doc.body.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+ok('synthetic click does not unmute (own clicks cost you nothing)',
+  main.muted === true);
+ok('synthetic click does not force fullscreen', !main.__fullscreen);
+skip('first tap unmutes + enters fullscreen — needs a trusted event, verify on device');
+
+// --- end of video ---------------------------------------------------------
+let siteEndHandlerRan = false;
+main.addEventListener('ended', () => { siteEndHandlerRan = true; });
+main.dispatchEvent(new window.Event('ended'));
+ok("site's end-of-video handler is blocked (no chaining)", siteEndHandlerRan === false);
+
+// --- interstitials --------------------------------------------------------
+ok('18+ flag pre-set in storage', /true/i.test(String(window.localStorage.getItem('ageConfirmed'))));
+
+// --- UI -------------------------------------------------------------------
+ok('settings button mounted', !!doc.querySelector('.xhe-fab'));
+doc.querySelector('.xhe-fab').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+const panel = doc.querySelector('.xhe-panel');
+ok('settings panel opens', !!panel);
+ok('panel lists every feature toggle',
+  panel && panel.querySelectorAll('input[type=checkbox]').length === 11,
+  panel ? `found ${panel.querySelectorAll('input[type=checkbox]').length}` : '');
+
+// --- stylesheet -----------------------------------------------------------
+const css = (doc.getElementById('xhe-style')?.textContent) ||
+  [...(doc.adoptedStyleSheets || [])].map((s) =>
+    [...s.cssRules].map((r) => r.cssText).join('')).join('');
+ok('comments hidden by stylesheet', /#comments/.test(css));
+ok('promos hidden by stylesheet', /premium-banner/.test(css));
+ok('thumbnail preview videos suppressed', /thumb-list[^{]*video/.test(css));
+ok('content-visibility applied to grids', /content-visibility/.test(css));
+
+// --- ad node stripping ----------------------------------------------------
+const s = doc.createElement('script');
+s.src = 'https://exoclick.com/ad.js';
+doc.body.appendChild(s);
+ok('blocked script src assignment is dropped', s.getAttribute('src') !== 'https://exoclick.com/ad.js',
+  `src=${s.getAttribute('src')}`);
+
+function report() {
+  const pad = Math.max(...results.map((r) => r.name.length));
+  for (const r of results) {
+    const tag = r.skipped ? 'SKIP' : (r.pass ? 'PASS' : 'FAIL');
+    console.log(`${tag}  ${r.name.padEnd(pad)}  ${r.detail}`);
+  }
+  const failed = results.filter((r) => !r.skipped && !r.pass).length;
+  const skipped = results.filter((r) => r.skipped).length;
+  const ran = results.length - skipped;
+  console.log(`\n${ran - failed}/${ran} passed, ${skipped} skipped (device-only)`);
+  return failed;
+}
+process.exit(report() ? 1 : 0);
