@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         xh Mobile Enhancer
 // @namespace    maxleesau.xh-mobile-enhancer
-// @version      0.1.0
+// @version      0.2.0
 // @description  Max quality, autostart with full buffering, ad and tracker removal, and speed-ups for xhamster.com in Safari on iPhone.
 // @match        https://xhamster.com/*
 // @match        https://*.xhamster.com/*
@@ -26,9 +26,10 @@
  * match nothing, so a stale selector can't break the site.
  *
  * Known trade-offs (all deliberate):
- *   - Initialises on full page loads only. Tapping a related video is usually
- *     an in-page navigation, so on that next video there is no forced quality
- *     and no autostart until you reload.
+ *   - Initialises on full page loads only. Taps on video links are therefore
+ *     turned into real page loads so every watch page arrives enhanced; other
+ *     in-page navigation (categories, pagination, search) is left on the site's
+ *     own faster routing and is not re-enhanced.
  *   - The main player buffers the whole file at max quality, on cellular as on
  *     Wi-Fi. That is real data whether or not you finish the video.
  *   - Quality never steps down, so a weak signal shows up as buffering rather
@@ -168,6 +169,12 @@
       thumbGrid: '[class*="thumb-list"], [class*="video-thumb"], [class*="thumbs-"]',
     }),
 
+    // What counts as a watch page. Taps on links matching this are turned
+    // into real page loads, because the script initialises on full loads only
+    // and an in-page navigation would otherwise land you on an un-enhanced
+    // video. Non-matching links keep the site's own (faster) routing.
+    WATCH_PATH: /^\/(videos?|embed|moments)\//i,
+
     // Storage keys the site itself uses, matched by pattern so a renamed key
     // is still found. Written to steer the site's own preferences.
     SITE_KEYS: Object.freeze({
@@ -200,6 +207,7 @@
     dismissConsent: true,
     skipAgeGate: true,
     noAutoplayNext: true,
+    forceReload: true,
   };
 
   var settings = loadSettings();
@@ -476,6 +484,38 @@
         set: function () {},
       });
     } catch (e) { /* leave it if the environment won't allow the patch */ }
+  }
+
+  // The script initialises on full page loads only, so a tap on a video link
+  // has to become a real navigation — otherwise the site routes in-page and
+  // you land on a watch page with no forced quality and no autostart. Scoped
+  // to video links: everything else keeps the site's own routing, which is
+  // faster and is not worth breaking for pages that have no player.
+  function installVideoLinkReload() {
+    nativeAddEventListener.call(document, 'click', function (ev) {
+      if (!settings.forceReload || !ev.isTrusted || ev.defaultPrevented) return;
+      // Let the browser's own affordances win: modified taps, middle-click.
+      if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+      if (typeof ev.button === 'number' && ev.button !== 0) return;
+
+      var a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+      if (!a || a.hasAttribute('download')) return;
+      if (a.target && a.target !== '_self') return;
+      if (!isWatchLink(a)) return;
+
+      ev.preventDefault();
+      location.assign(a.href);
+    }, true);
+  }
+
+  function isWatchLink(a) {
+    try {
+      var u = new URL(a.href, location.href);
+      if (u.origin !== location.origin) return false;
+      return CONFIG.WATCH_PATH.test(u.pathname);
+    } catch (e) {
+      return false; // malformed href — leave it to the browser
+    }
   }
 
   // Transparent tap-catchers laid over the player. Restricted to elements
@@ -774,7 +814,14 @@
     // fullscreen call on an untrusted event anyway, but it would still unmute.)
     if (ev && ev.isTrusted === false) return;
     // A tap on our own settings UI shouldn't be the one that goes fullscreen.
-    if (ev && ev.target && ev.target.closest && ev.target.closest('.xhe-fab, .xhe-panel')) return;
+    var target = ev && ev.target;
+    if (target && target.closest && target.closest('.xhe-fab, .xhe-panel')) return;
+    // Nor should a tap on a video link: that navigation is about to unload the
+    // page, and unmuting plus entering fullscreen on the way out is just noise.
+    if (target && target.closest) {
+      var link = target.closest('a[href]');
+      if (link && isWatchLink(link)) return;
+    }
     firstTapDone = true;
 
     var video = mainVideo || findMainVideo();
@@ -920,6 +967,7 @@
     ['dismissConsent', 'Auto-dismiss cookie banner'],
     ['skipAgeGate', 'Skip 18+ interstitial'],
     ['noAutoplayNext', 'Stop at end of video'],
+    ['forceReload', 'Full reload on video links'],
   ];
 
   // Changing these mid-page can't retroactively un-load what already loaded.
@@ -952,7 +1000,7 @@
 
     var note = document.createElement('p');
     note.className = 'xhe-note';
-    note.textContent = 'v0.1.0 · settings stay in this browser';
+    note.textContent = 'v0.2.0 · settings stay in this browser';
 
     TOGGLES.forEach(function (t) {
       var key = t[0], text = t[1];
@@ -1052,6 +1100,7 @@
   // --- document-start work, in order of urgency ---
   installNetworkGuard();
   installHijackGuard();
+  installVideoLinkReload();
   installHlsHook();
   installEndGuard();
   presetSiteFlags();

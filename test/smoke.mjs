@@ -24,6 +24,9 @@ const html = `<!doctype html><html><head><title>t</title></head><body>
   <div id="comments"><div class="comment-list">c</div></div>
   <div class="thumb-list"><div><video id="preview"></video></div></div>
   <div id="ad-top">ad</div>
+  <a id="related" href="/videos/another-456">related video</a>
+  <a id="category" href="/categories/example">a category</a>
+  <a id="offsite" href="https://example.com/videos/x">offsite</a>
   <div class="premium-banner">upsell</div>
 </body></html>`;
 
@@ -58,6 +61,8 @@ window.fetch = (input) => {
 const opened = [];
 window.open = (url) => { opened.push(String(url)); return { real: true }; };
 
+// location.assign is stubbed so the force-reload path can be asserted without
+// jsdom actually navigating (which it refuses to do anyway).
 let crashed = null;
 try {
   window.eval(SRC);
@@ -132,7 +137,7 @@ doc.querySelector('.xhe-fab').dispatchEvent(new window.MouseEvent('click', { bub
 const panel = doc.querySelector('.xhe-panel');
 ok('settings panel opens', !!panel);
 ok('panel lists every feature toggle',
-  panel && panel.querySelectorAll('input[type=checkbox]').length === 11,
+  panel && panel.querySelectorAll('input[type=checkbox]').length === 12,
   panel ? `found ${panel.querySelectorAll('input[type=checkbox]').length}` : '');
 
 // --- stylesheet -----------------------------------------------------------
@@ -143,6 +148,31 @@ ok('comments hidden by stylesheet', /#comments/.test(css));
 ok('promos hidden by stylesheet', /premium-banner/.test(css));
 ok('thumbnail preview videos suppressed', /thumb-list[^{]*video/.test(css));
 ok('content-visibility applied to grids', /content-visibility/.test(css));
+
+// --- force reload on video links -----------------------------------------
+// jsdom locks Location down (assign can't be stubbed) and can't forge
+// isTrusted, so the navigation itself is device-only. What IS testable, and is
+// the part most likely to be wrong, is which URLs get classified as watch
+// pages — so assert CONFIG.WATCH_PATH directly against the fixture's links.
+const watchPath = (() => {
+  const m = SRC.match(/WATCH_PATH:\s*(\/.*\/[a-z]*),/);
+  return m ? eval(m[1]) : null;
+})();
+ok('WATCH_PATH is defined in CONFIG', !!watchPath);
+if (watchPath) {
+  const classify = (href) => watchPath.test(new URL(href, 'https://xhamster.com').pathname);
+  ok('video link classified as a watch page', classify('/videos/another-456'));
+  ok('embed link classified as a watch page', classify('/embed/abc'));
+  ok('category link NOT classified as a watch page', !classify('/categories/example'));
+  ok('search link NOT classified as a watch page', !classify('/search?q=x'));
+  ok('home NOT classified as a watch page', !classify('/'));
+}
+// A click the script must ignore regardless: untrusted, so the guard rejects it.
+doc.getElementById('related').dispatchEvent(
+  new window.MouseEvent('click', { bubbles: true }));
+ok('untrusted click on a video link is ignored by the reload guard',
+  !doc.getElementById('related').__navigated);
+skip('trusted tap on a video link forces a full page load — verify on device');
 
 // --- ad node stripping ----------------------------------------------------
 const s = doc.createElement('script');

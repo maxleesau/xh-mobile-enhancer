@@ -19,6 +19,7 @@ Settings live in your browser's `localStorage`. The only outbound request it eve
 | **Auto-dismiss cookie banner** | on | Clicks reject-all, falling back to closing it. |
 | **Skip 18+ interstitial** | on | Sets the site's own confirmation flag so the gate stops rendering. Handles the site's plain "I am 18+" click-through only — a real age-verification wall (ID upload, face scan) is left completely alone. |
 | **Stop at end of video** | on | A video ends and stops. No next-video card, no chaining through your battery unattended. |
+| **Full reload on video links** | on | Tapping a video link loads it as a real page, so every watch page arrives fully enhanced. Category, search and pagination links keep the site's own faster routing. |
 
 All features toggle from a floating **≡** button in the lower-left, which fades out while a video is playing. Settings persist across visits.
 
@@ -39,7 +40,7 @@ Open any video in a fresh session. You should see: no cookie banner and no 18+ g
 
 ## Known trade-offs
 
-- **In-page navigation isn't handled.** Tapping a related video from the player usually navigates in-page, so that next video has no forced quality and no autostart until you reload.
+- **Only video links force a reload.** Other in-page navigation (categories, search, pagination) is left on the site's own routing and isn't re-enhanced — those pages have no player, so there's nothing to enhance.
 - **Full buffering uses real data**, on cellular as on Wi-Fi, whether or not you finish the video.
 - **Native fullscreen hides the site's quality menu.** Quality is forced before the handoff, so the top rendition carries in.
 - **The script is silent** — no console output. If something breaks, switch features off one at a time in the ≡ panel to find it.
@@ -50,7 +51,7 @@ Every selector lives in the `CONFIG` object at the top of the script, with comme
 
 ## Tests
 
-`npm install && npm test` runs a jsdom harness that loads the script into a page shaped like the target site and checks the blocklist (including that media CDN requests survive), the player setup, the end-of-video guard and the settings panel. The trusted-tap path can't be simulated in jsdom and is marked as a device-only check.
+`npm install && npm test` runs a jsdom harness that loads the script into a page shaped like the target site and checks the blocklist (including that media CDN requests survive), the player setup, the end-of-video guard, watch-page URL classification and the settings panel. Two paths need a trusted event, which jsdom can't forge, and are marked as device-only checks.
 
 ## Disclaimer
 
