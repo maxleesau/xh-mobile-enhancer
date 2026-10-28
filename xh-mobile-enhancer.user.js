@@ -67,6 +67,7 @@
       'xhcdn.com', 'xhamster.desi',    // video, scripts, styles, thumbnails
       'xhpingcdn.com', 'flixcdn.com',  // thumbnail and preview CDNs
       'fonts.googleapis.com', 'fonts.gstatic.com',
+      'accounts.google.com',           // "Sign in with Google"
     ]),
 
     // First-party hosts that only collect telemetry. Blocked even though they
@@ -931,13 +932,17 @@
   }
 
   function performanceCss() {
+    // thumbGrid is a selector list, so it has to be wrapped in :is() before
+    // anything is appended — otherwise " video" lands on the last entry only
+    // and the others hide whole grids.
+    var grid = ':is(' + CONFIG.SEL.thumbGrid + ')';
     return (
       // Offscreen thumbnail tiles skip layout and paint entirely. The
       // intrinsic size keeps the scrollbar from jumping as they resolve.
-      CONFIG.SEL.thumbGrid + ' > *{content-visibility:auto;contain-intrinsic-size:200px 260px;}' +
+      grid + ' > *{content-visibility:auto;contain-intrinsic-size:200px 260px;}' +
       // Hover-preview videos are a live decode each and useless on a
       // touchscreen — the deliberate exception to "autostart everywhere".
-      CONFIG.SEL.thumbGrid + ' video{display:none !important;}' +
+      grid + ' video{display:none !important;}' +
       // Animation is the cheapest thing to give up on a phone.
       '*,*::before,*::after{animation-duration:0s !important;animation-delay:0s !important;' +
       'transition-duration:0s !important;transition-delay:0s !important;}'
