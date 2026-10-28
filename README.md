@@ -42,7 +42,7 @@ Open any video in a fresh session. You should see: no cookie banner and no 18+ g
 
 - **Only video links force a reload.** Other in-page navigation (categories, search, pagination) is left on the site's own routing and isn't re-enhanced — those pages have no player, so there's nothing to enhance.
 - **Full buffering uses real data**, on cellular as on Wi-Fi, whether or not you finish the video. On Safari's native HLS path the browser decides how far ahead to buffer, so "whole video" only fully applies when the site plays through hls.js.
-- **Ad blocking is an allowlist.** Every host not listed in `CONFIG.ALLOW_HOSTS` is blocked, which also blocks Google sign-in. If the site moves something it needs onto a new domain, that part breaks until the domain is added — or switch off *Block ads & trackers* in the ≡ panel.
+- **Ad blocking is an allowlist.** Every host not listed in `CONFIG.ALLOW_HOSTS` is blocked (Google sign-in is on the list). If the site moves something it needs onto a new domain, that part breaks until the domain is added — or switch off *Block ads & trackers* in the ≡ panel.
 - **The pre-roll ad still starts downloading.** It's skipped, not blocked, because the player only loads the real video once the ad reports that it has ended.
 - **Native fullscreen hides the site's quality menu.** Quality is forced before the handoff, so the top rendition carries in.
 - **The script is silent** — no console output. If something breaks, switch features off one at a time in the ≡ panel to find it.
