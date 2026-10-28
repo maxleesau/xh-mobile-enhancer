@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         xh Mobile Enhancer
 // @namespace    maxleesau.xh-mobile-enhancer
-// @version      0.2.0
+// @version      0.3.0
 // @description  Max quality, autostart with full buffering, ad and tracker removal, and speed-ups for xhamster.com in Safari on iPhone.
 // @match        https://xhamster.com/*
 // @match        https://*.xhamster.com/*
@@ -38,10 +38,12 @@
  *     is not reachable; quality is forced before the handoff so it carries in.
  *   - The script is completely silent. If something breaks there is nothing in
  *     the console — isolate it by switching features off in the ≡ panel.
+ *   - Ad blocking is an allowlist: every host not in CONFIG.ALLOW_HOSTS is
+ *     blocked. If the site moves something it needs onto a new domain, that
+ *     part breaks until the domain is added there.
  *
- * The only outbound request it ever makes is an ad-filter list refresh, at
- * most once a week, after the page is already interactive. Everything else,
- * settings included, stays in this browser.
+ * The script makes no outbound requests of its own. Settings stay in this
+ * browser.
  */
 (function () {
   'use strict';
@@ -51,74 +53,58 @@
   // =====================================================================
   var CONFIG = Object.freeze({
     STORAGE_KEY: 'xhe:settings:v1',
-    BLOCKLIST_KEY: 'xhe:blocklist:v1',
-    BLOCKLIST_MAX_AGE_MS: 7 * 24 * 60 * 60 * 1000, // weekly refresh
-    BLOCKLIST_MAX_HOSTS: 40000,
 
-    // Public host lists, tried in order. Both are plain host-per-line and
-    // served with permissive CORS headers; a failure here is harmless because
-    // BLOCK_HOSTS below is always active regardless.
-    BLOCKLIST_URLS: Object.freeze([
-      'https://raw.githubusercontent.com/anudeepND/blacklist/master/adservers.txt',
-      'https://pgl.yoyo.org/adservers/serverlist.php?hostformat=plain&showintro=0&mimetype=plaintext',
+    // Allowlist, not blocklist: every request to a host outside this list is
+    // blocked. The site's ad networks rotate through throwaway domains
+    // (wakuhyfeserucu.com, modusygunaciro.com, ...) faster than any public
+    // list tracks them, so naming the hosts the site actually needs is the
+    // only approach that keeps up. Suffix-matched, so "xhcdn.com" also covers
+    // "video-nss.xhcdn.com". If the site moves something it needs onto a new
+    // domain, add it here; until then, switching off "Block ads & trackers"
+    // in the ≡ panel is the escape hatch.
+    ALLOW_HOSTS: Object.freeze([
+      'xhamster.com', 'xhwebsite.com', // the site itself
+      'xhcdn.com', 'xhamster.desi',    // video, scripts, styles, thumbnails
+      'xhpingcdn.com', 'flixcdn.com',  // thumbnail and preview CDNs
+      'fonts.googleapis.com', 'fonts.gstatic.com',
     ]),
 
-    // Built-in ad/tracker hosts. Suffix-matched, so "doubleclick.net" also
-    // covers "stats.g.doubleclick.net". Deliberately a host list rather than a
-    // block-all-third-parties rule, so the video CDN is never at risk.
-    BLOCK_HOSTS: Object.freeze([
-      'doubleclick.net', 'googlesyndication.com', 'googleadservices.com',
-      'google-analytics.com', 'googletagmanager.com', 'googletagservices.com',
-      'adservice.google.com', 'scorecardresearch.com', 'quantserve.com',
-      'quantcount.com', 'moatads.com', 'adsafeprotected.com', 'adnxs.com',
-      'rubiconproject.com', 'pubmatic.com', 'openx.net', 'criteo.com',
-      'criteo.net', 'taboola.com', 'outbrain.com', 'mgid.com', 'revcontent.com',
-      'popads.net', 'popcash.net', 'propellerads.com', 'poweradnetwork.com',
-      'adsterra.com', 'exoclick.com', 'exosrv.com', 'realsrv.com',
-      'juicyads.com', 'trafficjunky.com', 'trafficjunky.net', 'tsyndicate.com',
-      'trafficfactory.biz', 'adtng.com', 'ads-twitter.com', 'adroll.com',
-      'bidswitch.net', 'casalemedia.com', 'contextweb.com', 'sharethrough.com',
-      'smartadserver.com', 'sonobi.com', 'spotxchange.com', 'teads.tv',
-      'yieldmo.com', 'zedo.com', 'clickaine.com', 'clicksgear.com',
-      'hilltopads.net', 'plugrush.com', 'trafficstars.com', 'tsyndicate.net',
-      'stripchat.com', 'chaturbate.com', 'bongacams.com', 'xhcdn-ads.com',
-      'branch.io', 'amplitude.com', 'mixpanel.com', 'segment.io',
-      'sentry.io', 'bugsnag.com', 'newrelic.com', 'hotjar.com',
+    // First-party hosts that only collect telemetry. Blocked even though they
+    // sit under an allowed domain.
+    BLOCK_FIRST_PARTY_HOSTS: Object.freeze([
+      'collector.xhamster.com',
     ]),
 
-    // URL path/query fragments that mark a request as advertising regardless
-    // of host, so a first-party ad endpoint is caught too.
+    // URL path/query fragments that mark a first-party request as advertising
+    // or tracking. Third-party requests never get this far — the allowlist
+    // has already blocked them.
     BLOCK_PATHS: Object.freeze([
       // Deliberately no bare '/ad/' — short enough to false-positive on a
-      // legitimate media path, and the host list already covers the networks.
+      // legitimate media path.
       '/ads/', '/adserver', '/adframe', '/advert', '/banner',
       '/popunder', '/popup-ad', '/prebid', '/gpt.js', '/adsbygoogle',
       '/analytics', '/telemetry', '/beacon', '/tracker', '/tracking',
     ]),
 
-    // Never host-blocked, even if a remote list names them. Path patterns
-    // still apply, so a first-party ad endpoint is caught.
-    ALLOW_HOSTS: Object.freeze([
-      'xhamster.com', 'xhwebsite.com',
-    ]),
-
     // Media delivery — exempt from every rule, host and path alike. This is
-    // what keeps an over-broad pattern from ever killing playback.
+    // what keeps an over-broad pattern from ever killing playback. A <video>
+    // whose source is NOT on one of these hosts is treated as an ad.
     MEDIA_HOSTS: Object.freeze([
       'xhcdn.com', 'xhamster.desi',
     ]),
 
     SEL: Object.freeze({
       // Players. `player` is the container the main <video> lives in.
-      player: '.player-container, #player, .xplayer, [data-role="player"]',
+      player: '#video_box, .xplayer, .player-container, #player, [data-role="player"]',
       // Transparent tap-catchers the site lays over the player to open ads.
       clickCatcher:
         '.player-container a[target="_blank"], .video-overlay-ad, ' +
         '[class*="click-catch"], [id*="clickcatch"], [class*="overlay-ad"]',
-      // End-of-video card / next-video countdown.
+      // End-of-video card / next-video countdown. No bare "next-video": the
+      // player root itself carries `xplayer-next-video-edges`.
       endCard:
-        '[class*="next-video"], [class*="autoplay-overlay"], ' +
-        '[class*="video-ended"], [class*="end-card"], [class*="up-next"]',
+        '[class*="autoplay-overlay"], [class*="video-ended"], ' +
+        '[class*="end-card"], [class*="up-next"]',
       // The player's own quality menu.
       qualityMenuButton:
         '[data-role="quality-button"], .quality-selector, ' +
@@ -136,23 +122,33 @@
         '[class*="deny"], button[class*="necessary-only"]',
       consentClose: '[class*="close"], [aria-label*="close" i]',
 
-      // 18+ interstitial.
+      // 18+ interstitial ("parental control" dialog on the live site).
       ageGateRoot:
+        '[data-opt-hydration="parental-control-dialog"], ' +
         '[class*="age-verification"], [class*="age-gate"], ' +
         '[id*="age-verification"], [class*="disclaimer-modal"]',
       ageGateConfirm:
+        '[data-role="parental-control-confirm-button"], ' +
         '[data-role="age-confirm"], [class*="confirm"], [class*="enter"], ' +
         '[class*="agree"], [class*="over-18"], [class*="i-am"]',
 
       // Hidden outright: ad slots, promos, nags, the whole comments block.
+      // Every one of these is guarded against matching the player or its
+      // ancestors (see hideListCss), so a loose class match can't take it out —
+      // the player root carries `xplayer-ads-preload`, for one.
       hideAds: Object.freeze([
-        '[id^="ad-"]', '[id*="-ad-"]', '[class^="ad-"]', '[class*="-ads-"]',
+        // The live site's ad spots: `<prefix>--top`, `<prefix>--middle`,
+        // each tagged `<prefix>no-ts-init` until the ad script fills it.
+        '[class*="ts-init"]',
+        '[id^="ad-"]', '[id*="-ad-"]', '[class^="ad-"]',
         '[class*="advertis"]', '[class*="ad-banner"]', '[class*="ad-slot"]',
         '[class*="ad-container"]', '[class*="ad-wrapper"]', '[class*="adzone"]',
         '[data-role*="ad-"]', 'iframe[src*="ads"]', 'iframe[src*="doubleclick"]',
         '.trafficjunky', '#ad_top', '#ad_bottom',
       ]),
       hidePromos: Object.freeze([
+        // The pinned promo strip: data-role is `<ad-prefix>promo`.
+        '[data-role$="promo"]', 'a[href*="faphouse.com"]',
         '[class*="premium-banner"]', '[class*="upsell"]', '[class*="promo-"]',
         '[class*="-promo"]', '[class*="subscribe-banner"]',
         '[class*="newsletter"]', '[class*="app-install"]', '[class*="pwa-"]',
@@ -160,11 +156,18 @@
         '[class*="paysite"]', '[class*="gold-"]', '[class*="upgrade-banner"]',
       ]),
       hideComments: Object.freeze([
-        '#comments', '.comments', '[class*="comments-block"]',
+        // Live site: the toggle in the action row, and the section itself.
+        '#commentToggle', '#show_comments', '#commentBox',
+        '[class*="comments-section"]', '.video-comments',
+        'div#comments', '.comments', '[class*="comments-block"]',
         '[class*="comment-list"]', '[class*="comments-wrapper"]',
         '[class*="comment-form"]', '[data-role="comments"]',
         '[class*="comments-header"]', '[class*="comments-counter"]',
       ]),
+      // Native ads in thumbnail grids: a tile that links out through the
+      // site's ad redirector. Hidden by JS, whole tile at a time.
+      nativeAdLink: 'a[href*="/ff/out"]',
+      thumbTile: 'li, .thumb-list__item, .mobile-video-thumb, [class*="video-thumb"]',
       // Thumbnail grids — given content-visibility so offscreen tiles are free.
       thumbGrid: '[class*="thumb-list"], [class*="video-thumb"], [class*="thumbs-"]',
     }),
@@ -231,84 +234,8 @@
   }
 
   // =====================================================================
-  // Blocklist — built-in list is authoritative from the first millisecond;
-  // the cached remote list is additive.
+  // Host allowlist — anything not named in CONFIG.ALLOW_HOSTS is blocked
   // =====================================================================
-  var blockedHosts = new Set(CONFIG.BLOCK_HOSTS);
-  var allowedHosts = CONFIG.ALLOW_HOSTS;
-
-  (function loadCachedBlocklist() {
-    try {
-      var raw = localStorage.getItem(CONFIG.BLOCKLIST_KEY);
-      if (!raw) return;
-      var cached = JSON.parse(raw);
-      if (!cached || !cached.hosts) return;
-      var hosts = cached.hosts.split('\n');
-      for (var i = 0; i < hosts.length; i++) {
-        if (hosts[i]) blockedHosts.add(hosts[i]);
-      }
-    } catch (e) {
-      /* unreadable cache — the built-in list stands on its own */
-    }
-  })();
-
-  function blocklistIsStale() {
-    try {
-      var raw = localStorage.getItem(CONFIG.BLOCKLIST_KEY);
-      if (!raw) return true;
-      var cached = JSON.parse(raw);
-      return !cached || (Date.now() - (cached.ts || 0)) > CONFIG.BLOCKLIST_MAX_AGE_MS;
-    } catch (e) {
-      return false; // can't cache it anyway, so don't burn data trying
-    }
-  }
-
-  // Deliberately deferred: this runs well after the page is interactive, so a
-  // multi-hundred-KB download never sits on the critical path.
-  function refreshBlocklist() {
-    if (!settings.blockAds || !nativeFetch || !blocklistIsStale()) return;
-    var urls = CONFIG.BLOCKLIST_URLS.slice();
-
-    (function tryNext() {
-      if (!urls.length) return;
-      var url = urls.shift();
-      nativeFetch(url, { credentials: 'omit', cache: 'no-cache' })
-        .then(function (res) { return res.ok ? res.text() : Promise.reject(); })
-        .then(function (text) { storeBlocklist(parseHostList(text)); })
-        .catch(function () { tryNext(); });
-    })();
-  }
-
-  // Accepts both plain host-per-line and `0.0.0.0 host` hosts-file format.
-  function parseHostList(text) {
-    var out = [];
-    var lines = text.split('\n');
-    for (var i = 0; i < lines.length && out.length < CONFIG.BLOCKLIST_MAX_HOSTS; i++) {
-      var line = lines[i].trim();
-      if (!line || line.charAt(0) === '#' || line.charAt(0) === '!') continue;
-      var parts = line.split(/\s+/);
-      var host = parts.length > 1 ? parts[1] : parts[0];
-      if (!host || host.indexOf('.') === -1) continue;
-      if (host === 'localhost' || host === 'local') continue;
-      if (isAllowedHost(host)) continue;
-      out.push(host.toLowerCase());
-    }
-    return out;
-  }
-
-  function storeBlocklist(hosts) {
-    if (!hosts.length) return;
-    for (var i = 0; i < hosts.length; i++) blockedHosts.add(hosts[i]);
-    try {
-      localStorage.setItem(CONFIG.BLOCKLIST_KEY, JSON.stringify({
-        ts: Date.now(),
-        hosts: hosts.join('\n'),
-      }));
-    } catch (e) {
-      /* over quota — the in-memory set still helps for this page load */
-    }
-  }
-
   function matchesHostList(host, list) {
     for (var i = 0; i < list.length; i++) {
       var a = list[i];
@@ -318,7 +245,7 @@
   }
 
   function isAllowedHost(host) {
-    return matchesHostList(host, allowedHosts) || isMediaHost(host);
+    return matchesHostList(host, CONFIG.ALLOW_HOSTS) || isMediaHost(host);
   }
 
   function isMediaHost(host) {
@@ -326,16 +253,8 @@
   }
 
   function isBlockedHost(host) {
-    if (isAllowedHost(host)) return false;
-    if (blockedHosts.has(host)) return true;
-    // Suffix match, so a subdomain of a blocked host is blocked too.
-    var dot = host.indexOf('.');
-    while (dot !== -1) {
-      host = host.slice(dot + 1);
-      if (blockedHosts.has(host)) return true;
-      dot = host.indexOf('.');
-    }
-    return false;
+    if (matchesHostList(host, CONFIG.BLOCK_FIRST_PARTY_HOSTS)) return true;
+    return !isAllowedHost(host);
   }
 
   function shouldBlock(url) {
@@ -541,11 +460,27 @@
         var a = anchors[i];
         var u;
         try { u = new URL(a.href, location.href); } catch (e) { continue; }
-        if (!isBlockedHost(u.hostname.toLowerCase())) continue;
+        // Only known-bad hosts. Under the allowlist every outbound link is
+        // "blocked", and ordinary links off-site must keep working.
+        if (!matchesHostList(u.hostname.toLowerCase(), CONFIG.BLOCK_FIRST_PARTY_HOSTS)) continue;
         var real = u.searchParams.get('url') || u.searchParams.get('u') ||
                    u.searchParams.get('r') || u.searchParams.get('target');
         if (real && /^https?:\/\//.test(real)) a.href = real;
         else a.removeAttribute('href');
+      }
+    } catch (e) { /* nothing matched */ }
+  }
+
+  // Native ads posing as thumbnails: tiles that leave through the site's ad
+  // redirector. The whole tile goes, so the grid doesn't show a hole.
+  function hideNativeAdTiles() {
+    if (!settings.blockAds) return;
+    try {
+      var links = document.querySelectorAll(CONFIG.SEL.nativeAdLink);
+      for (var i = 0; i < links.length; i++) {
+        var tile = links[i].closest(CONFIG.SEL.thumbTile) || links[i];
+        if (tile.querySelector(CONFIG.SEL.player)) continue; // never the player
+        tile.style.setProperty('display', 'none', 'important');
       }
     } catch (e) { /* nothing matched */ }
   }
@@ -559,7 +494,24 @@
   function presetSiteFlags() {
     if (!settings.skipAgeGate) return;
     // Setting the site's own confirmation flag stops the interstitial from
-    // rendering at all, rather than flashing it and clicking it away.
+    // rendering at all, rather than flashing it and clicking it away. The live
+    // site keeps it in a cookie, set by its own "I'm 18 or older" button, and
+    // reads it on the server — so on the very first visit the page has already
+    // been rendered with the gate. Reload once with the cookie in place; the
+    // site ignores synthetic clicks on its button, so there's no other way
+    // through. Guarded per tab so a site change can never cause a reload loop.
+    try {
+      var had = /(^|;\s*)parental-control=yes/.test(document.cookie);
+      if (!had) {
+        document.cookie = 'parental-control=yes; path=/; max-age=31536000; ' +
+          'domain=.' + location.hostname.replace(/^.*?([^.]+\.[^.]+)$/, '$1');
+        var nowSet = /(^|;\s*)parental-control=yes/.test(document.cookie);
+        if (nowSet && !sessionStorage.getItem('xhe:gate-reload')) {
+          sessionStorage.setItem('xhe:gate-reload', '1');
+          location.reload();
+        }
+      }
+    } catch (e) { /* cookies or sessionStorage disabled */ }
     forEachSiteKey(CONFIG.SITE_KEYS.ageConfirmed, function (key, value) {
       if (/^(0|false|no)$/i.test(String(value))) writeSiteKey(key, 'true');
     });
@@ -581,6 +533,11 @@
     if (settings.skipAgeGate && !ageGateDismissed) {
       ageGateDismissed = clickWithin(CONFIG.SEL.ageGateRoot, CONFIG.SEL.ageGateConfirm);
     }
+  }
+
+  function isVisible(el) {
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
   }
 
   function clickWithin(rootSel, buttonSel) {
@@ -648,7 +605,9 @@
         cfg.maxBufferSize = 2 * 1024 * 1024 * 1024;
         cfg.backBufferLength = 90;
       }
-      var inst = new Hls(cfg);
+      // Reflect.construct keeps `new.target`, so a site class that extends
+      // the wrapper still gets its own prototype.
+      var inst = Reflect.construct(Hls, [cfg], new.target || WrappedHls);
       try {
         inst.on(Hls.Events.MANIFEST_PARSED, function () {
           pinToTopLevel(inst);
@@ -662,9 +621,11 @@
       return inst;
     }
     WrappedHls.prototype = Hls.prototype;
-    Object.keys(Hls).forEach(function (k) {
-      try { WrappedHls[k] = Hls[k]; } catch (e) { /* read-only static */ }
-    });
+    // Inherit the statics rather than copying them: hls.js defines Events,
+    // ErrorTypes, isSupported() and friends as class getters, which
+    // Object.keys doesn't see — copying left Hls.Events undefined and broke
+    // the site's player.
+    Object.setPrototypeOf(WrappedHls, Hls);
     WrappedHls.__xheWrapped = true;
     return WrappedHls;
   }
@@ -754,8 +715,69 @@
     return best;
   }
 
+  // A pre-roll ad plays in the same player as the real video, from one of
+  // the ad network's throwaway domains. The real video is either an MSE
+  // blob: or a URL on a media host, so anything else playing is an ad.
+  function isAdVideo(video) {
+    var src = video.currentSrc || video.src;
+    if (!src || src.indexOf('blob:') === 0) return false;
+    try {
+      return !isMediaHost(new URL(src, location.href).hostname.toLowerCase());
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Skip by jumping to the last frame rather than blocking the file: the
+  // player waits for the ad's own 'ended' before it loads the real video, so
+  // a blocked ad would leave it waiting forever.
+  function skipAd(video) {
+    if (!settings.blockAds || !isAdVideo(video)) return;
+    try {
+      video.muted = true;
+      if (isFinite(video.duration) && video.duration > 0 &&
+          video.currentTime < video.duration - 0.1) {
+        video.currentTime = video.duration;
+        tryPlay(video); // a paused ad never fires 'ended'
+      } else {
+        // Need the duration before we can jump to the end. No load() here:
+        // this runs on every DOM change and would restart the fetch each time.
+        video.preload = 'auto';
+      }
+    } catch (e) { /* not seekable yet — retried on loadedmetadata */ }
+  }
+
+  // Native HLS (iOS plays .m3u8 itself, without hls.js) does its own
+  // adaptive switching, and nothing in JS can pin it. The site's master
+  // playlist URL is signed and can't be edited, but the per-rendition
+  // playlists beside it load fine, so point the player at the top one.
+  // The master URL lists the renditions: .../multi=...,1920x1080:1080p/.../_TPL_.h265.mp4.m3u8
+  function pinNativeHls(video) {
+    if (!settings.maxQuality) return;
+    try {
+      var src = video.currentSrc || video.src;
+      if (!src || src.indexOf('_TPL_') === -1 || !/\.m3u8(\?|$)/.test(src)) return;
+      var multi = src.match(/\/multi=([^/]+)\//);
+      if (!multi) return;
+      var best = null, bestVal = -1;
+      multi[1].split(',').forEach(function (entry) {
+        var m = entry.match(/:(\d{3,4})p$/);
+        if (m && Number(m[1]) > bestVal) { bestVal = Number(m[1]); best = m[1] + 'p'; }
+      });
+      if (!best) return;
+      var at = video.currentTime;
+      var wasPlaying = !video.paused;
+      video.src = src.replace('_TPL_', best);
+      if (at) video.currentTime = at;
+      if (wasPlaying || settings.autostart) tryPlay(video);
+    } catch (e) { /* src not readable — hls.js path or nothing to pin */ }
+  }
+
   function attachToVideo(video, isMain) {
     if (!video) return;
+    watchVideo(video);
+    if (isAdVideo(video)) { skipAd(video); return; }
+    pinNativeHls(video);
     try {
       video.playsInline = true;              // without this, no autostart at all
       video.setAttribute('playsinline', '');
@@ -777,13 +799,24 @@
       if (settings.noAutoplayNext) video.loop = false;
     } catch (e) { /* element detached mid-setup */ }
 
+  }
+
+  // One set of listeners per element, for its whole life: the player swaps
+  // the same <video> from the ad to the real file, so each event re-checks
+  // which one it is now.
+  function watchVideo(video) {
     if (seenVideos.has(video)) return;
     seenVideos.add(video);
-
-    if (settings.autostart) {
-      nativeAddEventListener.call(video, 'loadedmetadata', function () { tryPlay(video); });
-      nativeAddEventListener.call(video, 'canplay', function () { tryPlay(video); });
+    function onReadyish() {
+      if (isAdVideo(video)) { skipAd(video); return; }
+      pinNativeHls(video);
+      if (settings.autostart) tryPlay(video);
     }
+    nativeAddEventListener.call(video, 'loadedmetadata', onReadyish);
+    nativeAddEventListener.call(video, 'canplay', onReadyish);
+    nativeAddEventListener.call(video, 'play', function () {
+      if (isAdVideo(video)) skipAd(video);
+    });
   }
 
   function tryPlay(video) {
@@ -860,6 +893,9 @@
     nativeAddEventListener.call(document, 'ended', function (ev) {
       if (!settings.noAutoplayNext) return;
       if (!ev.target || ev.target.tagName !== 'VIDEO') return;
+      // A pre-roll's 'ended' is what tells the player to load the real
+      // video, so it has to get through.
+      if (isAdVideo(ev.target)) return;
       ev.stopPropagation();
       try { ev.target.pause(); } catch (e) { /* already stopped */ }
     }, true);
@@ -885,8 +921,13 @@
     return css;
   }
 
+  // The :not() guards keep a loose class match from ever hiding the player
+  // or anything wrapping it. (Ad spots can hold a <video> of their own, so
+  // the guard is the player, not any video.)
   function hideListCss(list) {
-    return list.join(',') + '{display:none !important;}';
+    var player = CONFIG.SEL.player;
+    return ':is(' + list.join(',') + '):not(' + player + '):not(:has(' + player + '))' +
+      '{display:none !important;}';
   }
 
   function performanceCss() {
@@ -1000,7 +1041,7 @@
 
     var note = document.createElement('p');
     note.className = 'xhe-note';
-    note.textContent = 'v0.2.0 · settings stay in this browser';
+    note.textContent = 'v0.3.0 · settings stay in this browser';
 
     TOGGLES.forEach(function (t) {
       var key = t[0], text = t[1];
@@ -1071,6 +1112,7 @@
     stripAdNodes(document);
     removeClickCatchers();
     unwrapRedirectAnchors();
+    hideNativeAdTiles();
     dismissInterstitials();
     clickHighestQuality();
     writeQualityPreference();
@@ -1085,7 +1127,10 @@
         onDomChanged();
       });
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    // The document, not documentElement: at document-start there may be no
+    // <html> element yet, and observe(null) throws — which used to kill the
+    // whole script before the ≡ button was ever mounted.
+    observer.observe(document, { childList: true, subtree: true });
   }
 
   function onReady() {
@@ -1093,8 +1138,6 @@
     mountFab();
     armFirstTap();
     onDomChanged();
-    // Deferred so a filter-list download never sits on the critical path.
-    setTimeout(refreshBlocklist, 5000);
   }
 
   // --- document-start work, in order of urgency ---

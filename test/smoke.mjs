@@ -28,12 +28,27 @@ const html = `<!doctype html><html><head><title>t</title></head><body>
   <a id="category" href="/categories/example">a category</a>
   <a id="offsite" href="https://example.com/videos/x">offsite</a>
   <div class="premium-banner">upsell</div>
+  <!-- Shapes taken from the live site -->
+  <div id="video_box" class="video_container xplayer xplayer-next-video-edges xplayer-ads-preload">
+    <video id="ad" src="https://xhvideo.sacdnssedge.com/video/abc"></video>
+  </div>
+  <div class="OydH-dkoGT OydH-dkoGT--top OydH-dkoGTno-ts-init">spot</div>
+  <ul><li id="native-ad"><a href="https://xhamster.com/ff/out?path=%2Fshorts%2Fx">ad</a></li>
+      <li id="real-tile"><a href="/videos/real-1">real</a></li></ul>
 </body></html>`;
+
+// jsdom can't navigate; count the attempts instead (the 18+ gate reload).
+const virtualConsole = new (await import('jsdom')).VirtualConsole();
+let navigations = 0;
+virtualConsole.on('jsdomError', (e) => {
+  if (/navigation/i.test(e.message)) navigations++;
+});
 
 const dom = new JSDOM(html, {
   url: 'https://xhamster.com/videos/example-123',
   pretendToBeVisual: true,
   runScripts: 'outside-only',
+  virtualConsole,
 });
 const { window } = dom;
 
@@ -86,6 +101,13 @@ const probes = [
   ['https://xhamster.com/api/video/123', false], // first-party, must survive
   ['https://vs-cf.xhcdn.com/seg-1.ts', false],   // media CDN, must survive
   ['https://thumb-nss.xhcdn.com/a.jpg', false],
+  ['https://ic-nss.flixcdn.com/a/x/frame/1.jpg', false],  // thumbnail CDN
+  ['https://fonts.gstatic.com/s/inter.woff2', false],
+  // The live ad networks' throwaway domains: no list names them, the
+  // allowlist catches them anyway.
+  ['https://cdn.modusygunaciro.com/sdk.js', true],
+  ['https://wakuhyfeserucu.com/vast', true],
+  ['https://collector.xhamster.com/ping', true],          // first-party telemetry
 ];
 for (const [url, expectBlocked] of probes) {
   const before = fetched.length;
@@ -128,8 +150,22 @@ main.addEventListener('ended', () => { siteEndHandlerRan = true; });
 main.dispatchEvent(new window.Event('ended'));
 ok("site's end-of-video handler is blocked (no chaining)", siteEndHandlerRan === false);
 
+// The skipped pre-roll's 'ended' must reach the site: it's what makes the
+// player load the real video.
+const ad = doc.getElementById('ad');
+let adEndSeen = false;
+ad.addEventListener('ended', () => { adEndSeen = true; });
+ad.dispatchEvent(new window.Event('ended'));
+ok('pre-roll ad ended event reaches the site', adEndSeen === true);
+ok('pre-roll ad is muted', ad.muted === true);
+ok('pre-roll ad does not get autostart/full-buffer treatment', ad.preload !== 'auto' || ad.readyState === 0);
+
 // --- interstitials --------------------------------------------------------
 ok('18+ flag pre-set in storage', /true/i.test(String(window.localStorage.getItem('ageConfirmed'))));
+ok('18+ cookie pre-set', /parental-control=yes/.test(doc.cookie));
+ok('first visit reloads exactly once so the server drops the gate', navigations === 1,
+  `navigations=${navigations}`);
+ok('reload is latched per tab', window.sessionStorage.getItem('xhe:gate-reload') === '1');
 
 // --- UI -------------------------------------------------------------------
 ok('settings button mounted', !!doc.querySelector('.xhe-fab'));
@@ -148,6 +184,12 @@ ok('comments hidden by stylesheet', /#comments/.test(css));
 ok('promos hidden by stylesheet', /premium-banner/.test(css));
 ok('thumbnail preview videos suppressed', /thumb-list[^{]*video/.test(css));
 ok('content-visibility applied to grids', /content-visibility/.test(css));
+ok('hide rules never match the player', /:not\(#video_box/.test(css) && /:not\(:has\(#video_box/.test(css));
+ok('no bare "-ads-" rule (it matched the player root)', !/\[class\*="-ads-"\]/.test(css));
+ok('no bare "next-video" rule (it matched the player root)', !/\[class\*="next-video"\]/.test(css));
+ok('live ad spots hidden', /ts-init/.test(css));
+ok('native ad tile hidden', doc.getElementById('native-ad').style.display === 'none');
+ok('real tile left alone', doc.getElementById('real-tile').style.display !== 'none');
 
 // --- force reload on video links -----------------------------------------
 // jsdom locks Location down (assign can't be stubbed) and can't forge
