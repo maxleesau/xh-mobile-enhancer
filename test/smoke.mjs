@@ -184,6 +184,11 @@ ok('comments hidden by stylesheet', /#comments/.test(css));
 ok('promos hidden by stylesheet', /premium-banner/.test(css));
 ok('thumbnail preview videos suppressed', /thumb-list[^{]*video/.test(css));
 ok('content-visibility applied to grids', /content-visibility/.test(css));
+// Regression: appending " video" to the bare selector list hid whole grids.
+ok('grid video rule wraps the selector list in :is()',
+  /:is\(\[class\*="thumb-list"\][^)]*\) video/.test(css));
+ok('grid selectors only ever appear inside :is()',
+  !/thumb-list|video-thumb/.test(css.replace(/:is\([^)]*\)/g, '')));
 ok('hide rules never match the player', /:not\(#video_box/.test(css) && /:not\(:has\(#video_box/.test(css));
 ok('no bare "-ads-" rule (it matched the player root)', !/\[class\*="-ads-"\]/.test(css));
 ok('no bare "next-video" rule (it matched the player root)', !/\[class\*="next-video"\]/.test(css));
