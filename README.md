@@ -1,10 +1,14 @@
-# xh Mobile Enhancer
+# xh Enhancers
+
+Userscripts that force maximum video quality, start and buffer playback on their own, and clean up the page — one for iPhone Safari (`xh-mobile-enhancer.user.js`), one for desktop Chrome/Edge (`xh-desktop-enhancer.user.js`).
+
+Settings live in your browser's `localStorage`, under separate keys per script. Neither script makes outbound requests of its own.
+
+## iPhone (Safari)
 
 A userscript for Safari on iPhone that forces maximum video quality, starts and buffers playback on its own, strips ads and trackers, and speeds up the page.
 
-Settings live in your browser's `localStorage`. The script makes no outbound requests of its own.
-
-## Features
+### Features
 
 | Feature | Default | What it does |
 |---|---|---|
@@ -23,7 +27,7 @@ Settings live in your browser's `localStorage`. The script makes no outbound req
 
 All features toggle from a floating **≡** button in the lower-left, which fades out while a video is playing. Settings persist across visits.
 
-## Install (iPhone + Safari)
+### Install (iPhone + Safari)
 
 1. Install **[Userscripts](https://apps.apple.com/us/app/userscripts/id1463298887)** (free, open source) from the App Store.
 2. Enable it: **Settings → Apps → Safari → Extensions → Userscripts → Allow Extension**, and allow it for `xhamster.com`.
@@ -34,11 +38,11 @@ All features toggle from a floating **≡** button in the lower-left, which fade
 
 There is no auto-update. To update, reopen the raw link and install again.
 
-## Checking it works
+### Checking it works
 
 Open any video in a fresh session. You should see: no cookie banner and no 18+ gate; the video starts by itself, inline and silent, with the buffer bar filling to the end; your first tap turns sound on and drops into the fullscreen player at the top rendition; no ad slots, comments or promo banners; related videos still listed below; thumbnail grids that scroll without preview videos firing; and the video stopping at the end rather than rolling into the next one.
 
-## Known trade-offs
+### Known trade-offs (iOS)
 
 - **Only video links force a reload.** Other in-page navigation (categories, search, pagination) is left on the site's own routing and isn't re-enhanced — those pages have no player, so there's nothing to enhance.
 - **Full buffering uses real data**, on cellular as on Wi-Fi, whether or not you finish the video. On Safari's native HLS path the browser decides how far ahead to buffer, so "whole video" only fully applies when the site plays through hls.js.
@@ -47,13 +51,53 @@ Open any video in a fresh session. You should see: no cookie banner and no 18+ g
 - **Native fullscreen hides the site's quality menu.** Quality is forced before the handoff, so the top rendition carries in.
 - **The script is silent** — no console output. If something breaks, switch features off one at a time in the ≡ panel to find it.
 
+## Desktop (Chrome / Edge)
+
+A userscript for Chrome and Edge that forces the highest playable video quality, buffers as far ahead as the browser allows, starts playback with sound, and strips comments, promos and interstitials. It re-enhances in place across SPA navigation — no forced reloads.
+
+**It assumes uBlock Origin handles ads and trackers.** The desktop script has no ad, tracker, popunder or `window.open` features of any kind, by design.
+
+### Features (desktop)
+
+| Feature | Default | What it does |
+|---|---|---|
+| **Force highest quality** | on | Hooks the site's hls.js player and pins the top rendition, re-pinning if ABR tries to drop back. If the top rendition won't play (login/premium gating), it steps down one rendition at a time — three tries, then control returns to the player's own ABR. The site's own quality preference is written so the next video starts correct, and the quality menu is driven as a fallback layer. |
+| **Buffer as far ahead as possible** | on | hls.js buffer targets are set to the maximum and the main player gets `preload="auto"`. Chromium enforces a per-SourceBuffer quota, so you get runway, not the whole file. |
+| **Autostart videos** | on | The main player starts on its own. Secondary players stay muted and load metadata only, so audio never overlaps. |
+| **Start with sound** | on | Tries unmuted first. If Chromium refuses (Media Engagement not yet earned), it starts muted and unmutes on your first real click — after a few visits the unmuted attempt starts succeeding on its own. |
+| **Hide promos & nags** | on | Premium upsells, newsletter prompts, app-install banners, push-notification nags. |
+| **Hide comments** | on | The whole comments block. |
+| **Performance tweaks** | on | Offscreen thumbnails skip layout and paint, hover-preview videos are disabled, animations are cut. |
+| **Auto-dismiss cookie banner** | on | Clicks reject-all, falling back to closing it. |
+| **Skip 18+ interstitial** | on | Pre-sets the site's own confirmation flag so the gate never renders, with a click-through fallback. Plain "I am 18+" gates only — a real age-verification wall is left alone. |
+| **Stop at end of video** | on | A video ends and stops: the site's own end handler never runs, the next-video card never shows, and the site's autoplay-next preference is written false. |
+
+All ten toggles render from a floating **≡** button in the lower-left (near-invisible until hovered) and persist across visits.
+
+### Install (Chrome / Edge)
+
+1. Install **[Tampermonkey](https://www.tampermonkey.net/)** or **Violentmonkey** from your browser's extension store.
+2. Open [the raw script](https://raw.githubusercontent.com/maxleesau/xh-mobile-enhancer/main/xh-desktop-enhancer.user.js) — the manager offers to install it. Confirm.
+3. That's it. `@grant none` already runs the script in the page world, so there is no "Inject Into" step like on iOS.
+
+### Known trade-offs (desktop)
+
+- **Sound may start muted** until Chromium's Media Engagement threshold is met. Grant the site the Sound permission via the padlock menu to fix it permanently.
+- **Buffering is capped by Chromium's MSE quota** on streamed video, no matter what is requested — the feature asks for the maximum and the label promises only what the browser delivers.
+- **Quality can step down** if the top rendition is gated. After three demotions the player's own ABR takes over; a new video starts optimistic again.
+- **No ad features.** If uBlock Origin is disabled, ads return — the script still works.
+
 ## When the site updates and something breaks
 
-Every selector lives in the `CONFIG` object at the top of the script, with comments. Update the selector there — no need to touch anything else. Each feature no-ops silently when its selectors match nothing, so a stale selector can't break the site.
+Every selector in both scripts lives in the `CONFIG` object at the top of each file, with comments. Update the selector there — no need to touch anything else. Each feature no-ops silently when its selectors match nothing, so a stale selector can't break the site.
 
 ## Tests
 
-`npm install && npm test` runs a jsdom harness that loads the script into a page shaped like the target site and checks the host allowlist (including that media and thumbnail CDN requests survive), the player setup, pre-roll handling, the end-of-video guard, the 18+ cookie and one-time reload, hide rules that must never match the player, watch-page URL classification and the settings panel. Two paths need a trusted event, which jsdom can't forge, and are marked as device-only checks.
+`npm install && npm test` runs the iOS jsdom harness that loads the script into a page shaped like the target site and checks the host allowlist (including that media and thumbnail CDN requests survive), the player setup, pre-roll handling, the end-of-video guard, the 18+ cookie and one-time reload, hide rules that must never match the player, watch-page URL classification and the settings panel. Two paths need a trusted event, which jsdom can't forge, and are marked as device-only checks.
+
+`npm run test:desktop` runs the Playwright suite for the desktop script. It drives your **installed Chrome** (`channel: 'chrome'` — the bundled Chromium has no H.264/AAC and can't decode the site's video) against the live site, injecting the userscript exactly the way a manager would. It covers boot, the interstitials, autostart with the muted fallback, quality pinning and step-down, buffering, SPA re-enhancement, the settings panel and the layout rules. It is an on-demand harness, not a commit gate: a site outage or redesign means no signal, and every assertion names the selector or API it depended on.
+
+The two userscripts version independently — each owns the `@version` in its own header, and `package.json`'s version is deliberately `0.0.0`.
 
 ## Disclaimer
 
