@@ -64,6 +64,15 @@ DevTools → Network on a watch page (`m3u8` / `mpd` / `.mp4`) and the console v
 Implementation of the quality feature does not start until this is answered. Everything
 else in the design is independent of it.
 
+**Verdict (2026-11-10) — inferred, pending live confirmation.** Variant **8A (hls.js)** was
+implemented. Evidence: the sibling iOS script wraps `window.Hls` against this same site and
+pins `currentLevel` (its whole quality layer assumes hls.js for the non-native path), and
+Chromium has no native HLS, so the site must run MSE — with hls.js as the only library the
+site is known to ship. Live confirmation per Task 0 (DevTools → Network `m3u8`, console
+`typeof window.Hls`) is still required on device; if the verdict is wrong, only the
+`wrapHls`/`pinToTopLevel` block changes, and the quality-menu layer (Layer 3) already
+covers the progressive-MP4 fallback.
+
 **Non-blocking assumptions** (stated, not asked):
 
 - `hideAds` selectors are dropped — uBO's cosmetic filters cover ad slots. Promos, comments,

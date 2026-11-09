@@ -1,12 +1,14 @@
 {
   "name": "xh-mobile-enhancer",
-  "version": "0.3.0",
+  "version": "0.0.0",
   "private": true,
   "description": "iPhone Safari userscript: max video quality, autostart with full buffering, ad and tracker removal, page speed-ups.",
   "scripts": {
-    "test": "node --check xh-mobile-enhancer.user.js && node test/smoke.mjs"
+    "test": "node --check xh-mobile-enhancer.user.js && node test/smoke.mjs",
+    "test:desktop": "node --check xh-desktop-enhancer.user.js && playwright test -c config/playwright.config.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "jsdom": "^24.0.0"
   }
 }
