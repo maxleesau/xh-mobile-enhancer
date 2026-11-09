@@ -59,7 +59,7 @@ In the DevTools Console on the same page:
    src: document.querySelector('video')?.src?.slice(0, 80) })
 ```
 
-- [ ] **Step 3: Record the verdict in the spec**
+- [x] **Step 3: Record the verdict in the spec**
 
 Append the finding to the "Open questions" section of `docs/superpowers/specs/2026-09-16-xh-desktop-enhancer-design.md`, then commit:
 
@@ -91,13 +91,13 @@ Verdict decides which variant of Task 8 you implement:
 - Consumes: nothing.
 - Produces: `defineFeature(descriptor)`, `FEATURES` array, `CONFIG` object, `settings` object, `loadSettings()`, `saveSettings()`, `qs(sel, root)`, `qsa(sel, root)`, `isVisible(el)`, `forEachSiteKey(pattern, fn)`, `writeSiteKey(key, value)`, `findMainVideo()`, and the debug seam `window.__xhe = { version, config, features, settings, get ctx(), get css() }`. Test helpers produce `test`, `expect`, `HOME`, `gotoWatchPage(page)`.
 
-- [ ] **Step 1: Install the test dependency**
+- [x] **Step 1: Install the test dependency**
 
 ```bash
 npm install --save-dev @playwright/test
 ```
 
-- [ ] **Step 2: Add the test script to `package.json`**
+- [x] **Step 2: Add the test script to `package.json`**
 
 Add to `scripts` (leave `test` exactly as it is — it runs the iOS harness):
 
@@ -105,7 +105,7 @@ Add to `scripts` (leave `test` exactly as it is — it runs the iOS harness):
 "test:desktop": "node --check xh-desktop-enhancer.user.js && playwright test -c config/playwright.config.mjs"
 ```
 
-- [ ] **Step 3: Write `config/playwright.config.mjs`**
+- [x] **Step 3: Write `config/playwright.config.mjs`**
 
 ```js
 import { defineConfig } from '@playwright/test';
@@ -132,7 +132,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 4: Write `tests/helpers.mjs`**
+- [x] **Step 4: Write `tests/helpers.mjs`**
 
 ```js
 import { test as base, expect } from '@playwright/test';
@@ -171,7 +171,7 @@ export async function gotoWatchPage(page) {
 }
 ```
 
-- [ ] **Step 5: Write the failing test**
+- [x] **Step 5: Write the failing test**
 
 Create `tests/desktop.spec.mjs`:
 
@@ -199,12 +199,12 @@ test.describe('boot', () => {
 });
 ```
 
-- [ ] **Step 6: Run it to verify it fails**
+- [x] **Step 6: Run it to verify it fails**
 
 Run: `npm run test:desktop -- -g "debug seam"`
 Expected: FAIL — `xh-desktop-enhancer.user.js` does not exist (`node --check` errors first).
 
-- [ ] **Step 7: Write the userscript skeleton**
+- [x] **Step 7: Write the userscript skeleton**
 
 Create `xh-desktop-enhancer.user.js`:
 
@@ -394,12 +394,12 @@ Create `xh-desktop-enhancer.user.js`:
 })();
 ```
 
-- [ ] **Step 8: Run the test to verify it passes**
+- [x] **Step 8: Run the test to verify it passes**
 
 Run: `npm run test:desktop -- -g "debug seam"`
 Expected: PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add xh-desktop-enhancer.user.js config/playwright.config.mjs tests/helpers.mjs tests/desktop.spec.mjs package.json package-lock.json
@@ -418,7 +418,7 @@ git commit -m "feat: scaffold desktop userscript and Playwright harness"
 - Consumes: `FEATURES`, `defineFeature`, `settings`, `saveSettings()`, `enabled(f)`, `qs`, `qsa`.
 - Produces: `buildCss()`, `applyCss()`, `mountFab()`, `togglePanel()`, `hideListCss(list)`, and a working `window.__xhe.css` getter returning the current stylesheet text.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/desktop.spec.mjs`:
 
@@ -445,12 +445,12 @@ test.describe('settings panel', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npm run test:desktop -- -g "one toggle per feature"`
 Expected: FAIL — `.xhe-fab` is not visible (nothing mounts it yet).
 
-- [ ] **Step 3: Add the style engine**
+- [x] **Step 3: Add the style engine**
 
 Insert above the Bootstrap section of `xh-desktop-enhancer.user.js`:
 
@@ -565,7 +565,7 @@ Insert above the Bootstrap section of `xh-desktop-enhancer.user.js`:
   }
 ```
 
-- [ ] **Step 4: Wire it into the bootstrap**
+- [x] **Step 4: Wire it into the bootstrap**
 
 Replace the Bootstrap section's tail (from `let ctx = null;` to the end of the IIFE) with:
 
@@ -597,12 +597,12 @@ Replace the Bootstrap section's tail (from `let ctx = null;` to the end of the I
   }
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `npm run test:desktop -- -g "one toggle per feature"`
 Expected: PASS. (`FEATURES` is still empty, so the count assertion is `0 === 0` — it becomes meaningful in Task 3 and can never drift.)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add xh-desktop-enhancer.user.js tests/desktop.spec.mjs
@@ -621,7 +621,7 @@ git commit -m "feat: style engine and settings panel rendered from the feature r
 - Consumes: `defineFeature`, `hideListCss`, `CONFIG.SEL`.
 - Produces: features `hidePromos`, `hideComments`, `performance`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/desktop.spec.mjs`:
 
@@ -653,12 +653,12 @@ test.describe('layout', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npm run test:desktop -- -g "hides comments and promos"`
 Expected: FAIL — `css` is the base UI sheet only, so `toContain('#comments')` fails.
 
-- [ ] **Step 3: Register the three features**
+- [x] **Step 3: Register the three features**
 
 Insert immediately after the `defineFeature` helper in `xh-desktop-enhancer.user.js`:
 
@@ -694,17 +694,17 @@ Insert immediately after the `defineFeature` helper in `xh-desktop-enhancer.user
   });
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npm run test:desktop -- -g "hides comments and promos"`
 Expected: PASS.
 
-- [ ] **Step 5: Re-run the panel test**
+- [x] **Step 5: Re-run the panel test**
 
 Run: `npm run test:desktop -- -g "one toggle per feature"`
 Expected: PASS with three checkboxes now rendered.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add xh-desktop-enhancer.user.js tests/desktop.spec.mjs
@@ -723,7 +723,7 @@ git commit -m "feat: hide promos, comments and preview videos"
 - Consumes: `defineFeature`, `qsa`, `isVisible`, `forEachSiteKey`, `writeSiteKey`, `CONFIG.SEL`, `CONFIG.SITE_KEYS`.
 - Produces: features `dismissConsent`, `skipAgeGate`; helper `clickWithin(rootSel, buttonSel)`. Both features read and write `ctx.consentDismissed` / `ctx.ageGateDismissed`, which Task 5 adds to `PageContext`; until then they latch on module-level fallbacks created in Step 3.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/desktop.spec.mjs`:
 
@@ -741,12 +741,12 @@ test.describe('interstitials', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npm run test:desktop -- -g "18\\+ gate are gone"`
 Expected: FAIL — on a fresh profile the age gate and cookie banner both render and nothing dismisses them.
 
-- [ ] **Step 3: Implement both features**
+- [x] **Step 3: Implement both features**
 
 Insert after the layout features:
 
@@ -797,7 +797,7 @@ Insert after the layout features:
   });
 ```
 
-- [ ] **Step 4: Add a minimal context and sweep so the hooks actually run**
+- [x] **Step 4: Add a minimal context and sweep so the hooks actually run**
 
 Replace the bootstrap tail's `onReady` and add a scheduler (Task 5 replaces this with the full lifecycle):
 
@@ -840,12 +840,12 @@ Replace the bootstrap tail's `onReady` and add a scheduler (Task 5 replaces this
   }
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `npm run test:desktop -- -g "18\\+ gate are gone"`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add xh-desktop-enhancer.user.js tests/desktop.spec.mjs
@@ -864,7 +864,7 @@ git commit -m "feat: dismiss cookie banner and skip the 18+ interstitial"
 - Consumes: `each`, `CONFIG.WATCH_PATH`, `newPageContext` (replaced here).
 - Produces: the full `PageContext` shape — `{ id, url, mainVideo, player, seenVideos, consentDismissed, ageGateDismissed, qualityPreferenceWritten, qualityClickAttempts, qualityTarget, qualityDemotions, soundGranted, awaitingGesture, lastSweep, disposers, on(target, type, fn, opts), dispose() }` — plus `installNavigationWatcher()` and `navigate()`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/desktop.spec.mjs`:
 
@@ -897,12 +897,12 @@ test.describe('spa navigation', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npm run test:desktop -- -g "rebuilds the context"`
 Expected: FAIL — `ctx.id` is undefined and `ctx.disposers` does not exist.
 
-- [ ] **Step 3: Replace `newPageContext` with the full shape**
+- [x] **Step 3: Replace `newPageContext` with the full shape**
 
 ```js
   // ===================================================================
@@ -944,7 +944,7 @@ Expected: FAIL — `ctx.id` is undefined and `ctx.disposers` does not exist.
   }
 ```
 
-- [ ] **Step 4: Add the navigation watcher**
+- [x] **Step 4: Add the navigation watcher**
 
 ```js
   // ===================================================================
@@ -984,7 +984,7 @@ Expected: FAIL — `ctx.id` is undefined and `ctx.disposers` does not exist.
   }
 ```
 
-- [ ] **Step 5: Wire the backstop and `onNavigate` into the lifecycle**
+- [x] **Step 5: Wire the backstop and `onNavigate` into the lifecycle**
 
 In `sweep()`, add the href backstop as the first statement (it catches routers that captured a `history` reference before our patch landed):
 
@@ -1008,12 +1008,12 @@ And in the bootstrap tail, replace `ctx = newPageContext(); each('onStart', ctx)
 
 and add `each('onNavigate', ctx);` as the last line of `onReady()`.
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 Run: `npm run test:desktop -- -g "rebuilds the context"`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add xh-desktop-enhancer.user.js tests/desktop.spec.mjs
@@ -1032,7 +1032,7 @@ git commit -m "feat: PageContext with disposers and SPA navigation re-enhancemen
 - Consumes: `defineFeature`, `findMainVideo`, `qsa`, `ctx.on`, `ctx.soundGranted`, `ctx.awaitingGesture`, `ctx.mainVideo`.
 - Produces: features `autostart`, `soundOnStart`; helpers `attachToVideo(c, video, isMain)`, `tryPlay(video)`, `armGesture(c)`, `enforceMutedSecondaries(c)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/desktop.spec.mjs`:
 
@@ -1071,12 +1071,12 @@ test.describe('autostart and sound', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npm run test:desktop -- -g "one-click fallback"`
 Expected: FAIL — `ctx.mainVideo` is null; nothing attaches to videos yet.
 
-- [ ] **Step 3: Implement the features**
+- [x] **Step 3: Implement the features**
 
 ```js
   // ===================================================================
@@ -1179,17 +1179,17 @@ Expected: FAIL — `ctx.mainVideo` is null; nothing attaches to videos yet.
   }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npm run test:desktop -- -g "one-click fallback"`
 Expected: PASS. On a fresh profile the `awaiting` branch is the one exercised.
 
-- [ ] **Step 5: Re-run the navigation test**
+- [x] **Step 5: Re-run the navigation test**
 
 Run: `npm run test:desktop -- -g "rebuilds the context"`
 Expected: PASS — the disposer bound must still hold now that each context registers a gesture listener.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add xh-desktop-enhancer.user.js tests/desktop.spec.mjs
@@ -1208,7 +1208,7 @@ git commit -m "feat: autostart with unmuted-first playback and a muted fallback"
 - Consumes: `defineFeature`, `ctx.on`, `hideListCss`, `forEachSiteKey`, `writeSiteKey`, `CONFIG.SEL.endCard`, `CONFIG.SITE_KEYS.autoplayNext`.
 - Produces: feature `noAutoplayNext`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 test.describe('end of video', () => {
@@ -1234,12 +1234,12 @@ test.describe('end of video', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npm run test:desktop -- -g "rather than chaining"`
 Expected: FAIL — `siteHandlerRan` is `true`.
 
-- [ ] **Step 3: Implement the feature**
+- [x] **Step 3: Implement the feature**
 
 ```js
   // ===================================================================
@@ -1264,12 +1264,12 @@ Expected: FAIL — `siteHandlerRan` is `true`.
   });
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npm run test:desktop -- -g "rather than chaining"`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add xh-desktop-enhancer.user.js tests/desktop.spec.mjs
@@ -1290,7 +1290,7 @@ git commit -m "feat: stop at the end of a video instead of chaining"
 
 Implement **exactly one** of 8A / 8B / 8C. The test in Step 1 is shared.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 test.describe('quality', () => {
@@ -1311,12 +1311,12 @@ test.describe('quality', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npm run test:desktop -- -g "highest rendition that plays"`
 Expected: FAIL — `qualityTarget` stays `null`.
 
-- [ ] **Step 3A (hls.js): implement the hook**
+- [x] **Step 3A (hls.js): implement the hook**
 
 ```js
   // ===================================================================
@@ -1380,7 +1380,7 @@ Expected: FAIL — `qualityTarget` stays `null`.
   });
 ```
 
-- [ ] **Step 3B (dash.js): implement the hook instead**
+- [x] **Step 3B (dash.js): implement the hook instead**
 
 ```js
   // ===================================================================
@@ -1440,7 +1440,7 @@ Expected: FAIL — `qualityTarget` stays `null`.
   });
 ```
 
-- [ ] **Step 3C (progressive MP4): drive the menu as the primary lever**
+- [x] **Step 3C (progressive MP4): drive the menu as the primary lever**
 
 ```js
   // ===================================================================
@@ -1472,7 +1472,7 @@ Expected: FAIL — `qualityTarget` stays `null`.
   });
 ```
 
-- [ ] **Step 4: Add the shared menu and preference layers (all variants)**
+- [x] **Step 4: Add the shared menu and preference layers (all variants)**
 
 ```js
   function highestAdvertisedQuality() {
@@ -1519,12 +1519,12 @@ Expected: FAIL — `qualityTarget` stays `null`.
   }
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [x] **Step 5: Run the test to verify it passes**
 
 Run: `npm run test:desktop -- -g "highest rendition that plays"`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add xh-desktop-enhancer.user.js tests/desktop.spec.mjs
@@ -1543,7 +1543,7 @@ git commit -m "feat: force the highest rendition"
 - Consumes: `pinToTopLevel(c)`, `ctx.qualityTarget`, `ctx.qualityDemotions`, `ctx.mainVideo`, `ctx.on`.
 - Produces: `stepDownTarget(target, demotions, maxDemotions)` (pure, exposed as `window.__xhe.debug.stepDownTarget`), `installStallWatchdog(c)`, `demote(c)`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 test.describe('quality step-down', () => {
@@ -1574,12 +1574,12 @@ test.describe('quality step-down', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npm run test:desktop -- -g "step-down"`
 Expected: FAIL — `window.__xhe.debug` is undefined.
 
-- [ ] **Step 3: Implement the step-down**
+- [x] **Step 3: Implement the step-down**
 
 ```js
   // ===================================================================
@@ -1625,7 +1625,7 @@ Expected: FAIL — `window.__xhe.debug` is undefined.
   }
 ```
 
-- [ ] **Step 4: Hook the watchdog and the fatal-error path into `maxQuality`**
+- [x] **Step 4: Hook the watchdog and the fatal-error path into `maxQuality`**
 
 Add to the `maxQuality` descriptor:
 
@@ -1639,7 +1639,7 @@ On the hls.js variant only, also register the fatal-error demotion inside `wrapH
         inst.on(Hls.Events.ERROR, (_e, data) => { if (data?.fatal) demote(ctx); });
 ```
 
-- [ ] **Step 5: Expose the debug helpers**
+- [x] **Step 5: Expose the debug helpers**
 
 Add to the `window.__xhe` object literal:
 
@@ -1647,12 +1647,12 @@ Add to the `window.__xhe` object literal:
     debug: { stepDownTarget, demote },
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `npm run test:desktop -- -g "step-down"`
 Expected: both PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add xh-desktop-enhancer.user.js tests/desktop.spec.mjs
@@ -1671,7 +1671,7 @@ git commit -m "feat: step down when the top rendition will not play"
 - Consumes: `defineFeature`, `bufferConfig()` (stub from Task 8, replaced here), `attachToVideo`, `ctx.mainVideo`.
 - Produces: feature `fullBuffer`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```js
 test.describe('buffering', () => {
@@ -1693,12 +1693,12 @@ test.describe('buffering', () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npm run test:desktop -- -g "buffer runs ahead"`
 Expected: FAIL — `preload` is not `'auto'`.
 
-- [ ] **Step 3: Register the feature and fill in the buffer config**
+- [x] **Step 3: Register the feature and fill in the buffer config**
 
 Replace the `bufferConfig()` stub from Task 8 with:
 
@@ -1730,17 +1730,17 @@ Replace the `bufferConfig()` stub from Task 8 with:
   });
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npm run test:desktop -- -g "buffer runs ahead"`
 Expected: PASS.
 
-- [ ] **Step 5: Run the whole suite**
+- [x] **Step 5: Run the whole suite**
 
 Run: `npm run test:desktop`
 Expected: all tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add xh-desktop-enhancer.user.js tests/desktop.spec.mjs
@@ -1759,7 +1759,7 @@ git commit -m "feat: buffer as far ahead as the browser allows"
 - Consumes: nothing.
 - Produces: nothing consumed by other tasks.
 
-- [ ] **Step 1: Restructure the README around two scripts**
+- [x] **Step 1: Restructure the README around two scripts**
 
 Give `README.md` a short intro naming both scripts, then keep the existing iOS content under a `## iPhone (Safari)` heading, and add a `## Desktop (Chrome / Edge)` section covering:
 
@@ -1769,11 +1769,11 @@ Give `README.md` a short intro naming both scripts, then keep the existing iOS c
 - Known trade-offs: sound may start muted until Chromium's Media Engagement threshold is met (grant the site Sound permission via the padlock to fix permanently); buffering is capped by Chromium's MSE quota on streamed video; quality can step down if the top rendition is gated.
 - Tests: `npm run test:desktop` drives your installed Chrome against the live site; `npm test` still runs the iOS jsdom harness.
 
-- [ ] **Step 2: Fix the version drift**
+- [x] **Step 2: Fix the version drift**
 
 `package.json` currently says `0.1.0` while the iOS script header says `0.2.0`. Each userscript owns its own `@version`, so decouple the package version — set `"version": "0.0.0"` and add a comment-free note in the README's Tests section that the two scripts version independently.
 
-- [ ] **Step 3: Verify both suites still run**
+- [x] **Step 3: Verify both suites still run**
 
 Run: `npm test`
 Expected: the iOS jsdom harness passes exactly as before.
@@ -1781,7 +1781,7 @@ Expected: the iOS jsdom harness passes exactly as before.
 Run: `npm run test:desktop`
 Expected: all desktop tests pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md package.json
